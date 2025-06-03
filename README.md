@@ -1,7 +1,6 @@
 
 ---
-# AARCOMM Virtualized RCPU – Flutter CAN Keypad Interface
-
+# 2x2_2x6 Keypad App with Testing
 This Flutter application simulates a virtual handheld controller for CAN-based diagnostic and control systems. It emulates two Blink Marine keypads (2x2 and 2x6) and transmits structured CAN messages via Bluetooth to devices such as the Axiomatic CAN-to-Bluetooth converter or Puisi MCBox. The app is ideal for testing, QA automation, and diagnostics in J1939 environments.
 
 ---
