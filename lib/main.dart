@@ -254,41 +254,39 @@ class _CanKeypadScreenState extends State<CanKeypadScreen> {
     });
   }
 
-void _startAutoTest() async {
-  final deviceId = CanBluetooth.instance.connectedDevices.keys.firstOrNull;
-  if (deviceId == null) {
-    debugPrint('No Bluetooth device connected for test.');
-    return;
+  void _startAutoTest() async {
+    final deviceId = CanBluetooth.instance.connectedDevices.keys.firstOrNull;
+    if (deviceId == null) {
+      debugPrint('No Bluetooth device connected for test.');
+      return;
+    }
+
+    final allKeys = [...keypad2x2, ...keypad2x6];
+    int initialFrameCount = canFrameLog.length;
+
+    debugPrint('▶Auto Test started with delay $_autoTestDelayMs ms');
+
+    // PRESS phase — one by one
+    for (String key in allKeys) {
+      setState(() => _currentTestKey = key);
+      _handleButtonPress(key);
+      await Future.delayed(Duration(milliseconds: _autoTestDelayMs));
+    }
+
+    // Wait briefly before clearing
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    // BULK DESELECT: like pressing "Reset All"
+    _resetAllButtons();
+
+    setState(() => _currentTestKey = null);
+
+    // Show completion result
+    final newFrames = canFrameLog.length - initialFrameCount;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Auto Test complete: $newFrames frames sent')),
+    );
   }
-
-  final allKeys = [...keypad2x2, ...keypad2x6];
-  int initialFrameCount = canFrameLog.length;
-
-  debugPrint('▶Auto Test started with delay $_autoTestDelayMs ms');
-
-  // PRESS phase — one by one
-  for (String key in allKeys) {
-    setState(() => _currentTestKey = key);
-    _handleButtonPress(key);
-    await Future.delayed(Duration(milliseconds: _autoTestDelayMs));
-  }
-
-  // Wait briefly before clearing
-  await Future.delayed(const Duration(milliseconds: 600));
-
-  // BULK DESELECT: like pressing "Reset All"
-  _resetAllButtons();
-
-  setState(() => _currentTestKey = null);
-
-  // Show completion result
-  final newFrames = canFrameLog.length - initialFrameCount;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Auto Test complete: $newFrames frames sent')),
-  );
-}
-
-
 
   //Clears only 2x6 keypad and logs
   void _clear2x6Buttons() {
@@ -464,22 +462,42 @@ void _startAutoTest() async {
   void initState() {
     super.initState();
 
-    // Start stopwatch for time tracking
     _stopwatch = Stopwatch()..start();
 
-    // Periodically refresh UI every 100ms (e.g., to update timer)
     _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       setState(() {});
     });
 
-    // Request necessary permissions for BLE
     _ensureBluetoothPermissions();
 
-    // Initialize Bluetooth manager and start scanning
     CanBluetooth.instance.init();
     CanBluetooth.instance.startScan();
 
-    // Listen for new devices being added, and refresh UI
+    // Try to auto-connect and run auto test
+    Future.delayed(const Duration(seconds: 2), () async {
+      final targetId = 'fd000000000i0'.toLowerCase();
+      final matches = CanBluetooth.instance.scanResults.values.where((result) {
+        final name = result.advertisementData.localName.toLowerCase();
+        final id = result.device.remoteId.str.toLowerCase();
+        return name == targetId || id == targetId;
+      });
+
+      if (matches.isNotEmpty) {
+        final device = matches.first.device;
+        await CanBluetooth.instance.connect(device);
+        debugPrint(' Auto-connected to $targetId');
+
+        // Wait a little after connection, then run auto test
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            _startAutoTest();
+          }
+        });
+      } else {
+        debugPrint(' Auto-connect: target device not found');
+      }
+    });
+
     CanBluetooth.instance.addedDevice.addListener(() {
       setState(() {});
     });
@@ -595,9 +613,9 @@ void _startAutoTest() async {
   late final Timer _timer; //Triggers UI to refresh every 100ms
   bool _isTimerRunning = true; // Controls pause/resume
 
-//Added for testing
-int _autoTestDelayMs = 400; // Default: Normal speed
-String? _currentTestKey; // Used to highlight the active button
+  //Added for testing
+  int _autoTestDelayMs = 400; // Default: Normal speed
+  String? _currentTestKey; // Used to highlight the active button
 
   final List<CanLogEntry> canFrameLog = [];
   //CAN log ents.
@@ -1356,7 +1374,7 @@ String? _currentTestKey; // Used to highlight the active button
                       ],
                     ),
                   ),
-*/
+    */
                   // Log Controls
                   Padding(
                     padding: const EdgeInsets.symmetric(
